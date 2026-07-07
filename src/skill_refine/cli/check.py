@@ -2,68 +2,73 @@
 
 from __future__ import annotations
 
-import json
+from enum import Enum
 from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from skill_refine.analysis.checker import run_checks
-from skill_refine.analysis.scorer import compute_score
-from skill_refine.analysis.smells import detect_smells
-from skill_refine.core.models import Severity, SkillReport
-from skill_refine.core.parser import parse_skill
+from skill_refine import __version__
+from skill_refine.lint import (
+    ProfileError,
+    Severity,
+    SkillReport,
+    analyze,
+    load_profile,
+    render_json,
+)
+from skill_refine.lint.smells import SMELL_MESSAGES
 
 console = Console()
 
-_SMELL_DESCRIPTIONS: dict[str, str] = {
-    "VAGUE_TRIGGER": "Trigger condition uses imprecise language",
-    "NO_WARNINGS": "No warnings or caveats defined",
-    "NO_FAILURE_CASES": "No negative cases (When not to apply)",
-    "TOKEN_BLOAT": "Skill exceeds reasonable token budget",
-    "NO_INPUTS_OUTPUTS": "Inputs/Outputs not specified",
-    "NO_BOUNDARIES": "No application boundaries defined",
-    "WALL_OF_TEXT": "Oversized paragraphs without structure",
-    "EMPTY_FRONTMATTER": "YAML frontmatter missing entirely",
-}
+
+class FailOn(str, Enum):
+    NEVER = "never"
+    WARNING = "warning"
+    ERROR = "error"
 
 
 def check(
     path: Path = typer.Argument(
-        ..., help="Path to a skill file (.md) or directory containing skill files.",
+        ...,
+        help="Path to a skill file (.md / SKILL.md) or a directory of skills.",
         exists=True,
+    ),
+    profile_name: str = typer.Option(
+        "standard",
+        "--profile",
+        "-P",
+        help="Lint profile: 'standard' (default), 'strict', or a path to a .toml profile.",
     ),
     verbose: bool = typer.Option(False, "--verbose", help="Show detailed output."),
     output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
+    fail_on: FailOn = typer.Option(
+        FailOn.NEVER,
+        "--fail-on",
+        help="Exit non-zero when findings at/above this level exist.",
+    ),
 ) -> None:
     """Check skill files for completeness, structure, and smells."""
-    files = _resolve_files(path)
+    try:
+        profile = load_profile(profile_name)
+    except ProfileError as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(2)
 
-    if not files:
-        console.print("[red]No .md files found.[/red]")
-        raise typer.Exit(1)
-
-    reports: list[SkillReport] = []
-    for file in sorted(files):
-        try:
-            skill = parse_skill(file)
-            findings = run_checks(skill)
-            smells = detect_smells(skill)
-            score = compute_score(skill)
-            reports.append(
-                SkillReport(skill=skill, findings=findings, smells=smells, score=score)
-            )
-        except Exception as e:
-            console.print(f"[red]Error parsing {file}: {e}[/red]")
+    reports = analyze(path, profile)
 
     if not reports:
+        console.print("[red]No skill files found (SKILL.md or *.md).[/red]")
         raise typer.Exit(1)
 
     if output_json:
-        _print_json(reports)
+        console.print_json(
+            render_json(reports, profile=profile.name, tool_version=__version__)
+        )
     elif len(reports) == 1:
         _print_single(reports[0], verbose)
     else:
@@ -73,11 +78,18 @@ def check(
                 console.print()
                 _print_single(report, verbose=True)
 
+    _apply_fail_on(reports, fail_on)
 
-def _resolve_files(path: Path) -> list[Path]:
-    if path.is_file():
-        return [path] if path.suffix == ".md" else []
-    return list(path.glob("*.md"))
+
+def _apply_fail_on(reports: list[SkillReport], fail_on: FailOn) -> None:
+    if fail_on == FailOn.NEVER:
+        return
+    failing = {Severity.ERROR}
+    if fail_on == FailOn.WARNING:
+        failing.add(Severity.WARNING)
+    for r in reports:
+        if any(f.severity in failing for f in r.findings):
+            raise typer.Exit(1)
 
 
 def _score_color(score: float) -> str:
@@ -89,7 +101,6 @@ def _score_color(score: float) -> str:
 
 
 def _score_bar(score: float, width: int = 20) -> Text:
-    """Render a visual score bar like ████████░░░░░░░░░░░░ 6.5/10."""
     filled = int(score / 10.0 * width)
     empty = width - filled
     color = _score_color(score)
@@ -111,21 +122,20 @@ def _severity_icon(severity: Severity) -> str:
 def _print_single(report: SkillReport, verbose: bool) -> None:
     sc = report.score
     color = _score_color(sc.total)
-    name = report.skill.metadata.name or report.skill.path.name
     section_count = len(report.skill.sections)
+    location = report.skill_dir or str(report.skill.path)
 
-    # Header panel
     console.print(
         Panel(
-            f"[bold]{name}[/bold]\n"
-            f"[dim]{report.skill.path}[/dim]",
+            f"[bold]{report.name}[/bold]\n"
+            f"[dim]{report.skill.path}[/dim]\n"
+            f"[dim]format: {report.skill_format} · profile: {report.profile}[/dim]",
             title="[bold]Skill Check[/bold]",
             subtitle=f"[{color}]{sc.total}/10[/{color}]",
             border_style=color,
         )
     )
 
-    # Stats line
     console.print(
         f"  [dim]Words:[/dim] {report.skill.word_count}   "
         f"[dim]Tokens (est.):[/dim] ~{report.skill.estimated_tokens}   "
@@ -135,7 +145,6 @@ def _print_single(report: SkillReport, verbose: bool) -> None:
     )
     console.print()
 
-    # Sub-scores with bars
     score_table = Table(show_header=False, box=None, padding=(0, 2), expand=False)
     score_table.add_column("Category", style="bold", width=16)
     score_table.add_column("Bar", no_wrap=True)
@@ -149,7 +158,6 @@ def _print_single(report: SkillReport, verbose: bool) -> None:
     console.print(score_table)
     console.print()
 
-    # Findings
     errors = [f for f in report.findings if f.severity == Severity.ERROR]
     warnings = [f for f in report.findings if f.severity == Severity.WARNING]
     infos = [f for f in report.findings if f.severity == Severity.INFO]
@@ -159,31 +167,38 @@ def _print_single(report: SkillReport, verbose: bool) -> None:
         for f in errors + warnings + (infos if verbose else []):
             style = _severity_style(f.severity)
             icon = _severity_icon(f.severity)
-            console.print(f"  [{style}]{icon} {f.severity.value.upper():7s}[/{style}]  {f.message}")
+            console.print(
+                f"  [{style}]{icon} {f.severity.value.upper():7s}[/{style}]  "
+                f"[dim]{f.id}[/dim]  {f.message}"
+            )
         if infos and not verbose:
             console.print(f"  [dim]  … +{len(infos)} info (use --verbose)[/dim]")
         console.print()
 
-    # Smells
     if report.smells:
         console.print("[bold]Smells[/bold]")
         for smell in report.smells:
-            desc = _SMELL_DESCRIPTIONS.get(smell.value, "")
+            desc = SMELL_MESSAGES.get(smell.value, "")
             console.print(f"  [magenta]⚠ {smell.value}[/magenta]  [dim]{desc}[/dim]")
         console.print()
 
-    # Verbose: section listing
     if verbose and report.skill.sections:
         console.print("[bold]Sections[/bold]")
         for sec in report.skill.sections:
-            wc_color = "red" if sec.word_count > 500 else ("yellow" if sec.word_count > 300 else "dim")
+            wc_color = (
+                "red"
+                if sec.word_count > 500
+                else ("yellow" if sec.word_count > 300 else "dim")
+            )
             empty_tag = " [red](empty)[/red]" if not sec.content.strip() else ""
             console.print(
-                f"  [bold]##[/bold] {sec.heading}  [{wc_color}]{sec.word_count} words[/{wc_color}]{empty_tag}"
+                f"  [bold]##[/bold] {sec.heading}  "
+                f"[{wc_color}]{sec.word_count} words[/{wc_color}]{empty_tag}"
             )
         console.print()
 
-    # Verdict
+    _ = location  # reserved for future use
+
     if sc.total >= 8.0:
         console.print("[green]→ Skill looks solid.[/green]")
     elif sc.total >= 5.0:
@@ -193,13 +208,12 @@ def _print_single(report: SkillReport, verbose: bool) -> None:
 
 
 def _print_summary_table(reports: list[SkillReport]) -> None:
-    # Sort weakest first
     reports_sorted = sorted(reports, key=lambda r: r.score.total)
 
     table = Table(title="Skill Check Summary", title_style="bold")
     table.add_column("#", style="dim", width=3)
-    table.add_column("File", style="bold")
-    table.add_column("Name", style="dim")
+    table.add_column("Skill", style="bold")
+    table.add_column("Format", style="dim")
     table.add_column("Score", justify="right")
     table.add_column("Findings", justify="right")
     table.add_column("Smells", justify="right")
@@ -208,11 +222,10 @@ def _print_summary_table(reports: list[SkillReport]) -> None:
 
     for i, r in enumerate(reports_sorted, 1):
         color = _score_color(r.score.total)
-        name = r.skill.metadata.name or "—"
         table.add_row(
             str(i),
-            r.skill.path.name,
-            name,
+            r.name,
+            r.skill_format,
             f"[{color}]{r.score.total}/10[/{color}]",
             str(len(r.findings)),
             str(len(r.smells)),
@@ -221,42 +234,13 @@ def _print_summary_table(reports: list[SkillReport]) -> None:
         )
     console.print(table)
 
-    # Summary stats
     scores = [r.score.total for r in reports_sorted]
     avg = sum(scores) / len(scores)
     avg_color = _score_color(avg)
+    weakest = reports_sorted[0]
     console.print(
-        f"\n  [dim]Files:[/dim] {len(reports)}   "
+        f"\n  [dim]Skills:[/dim] {len(reports)}   "
+        f"[dim]Profile:[/dim] {reports_sorted[0].profile}   "
         f"[dim]Avg score:[/dim] [{avg_color}]{avg:.1f}/10[/{avg_color}]   "
-        f"[dim]Weakest:[/dim] [{_score_color(scores[0])}]{reports_sorted[0].skill.path.name}[/{_score_color(scores[0])}]"
+        f"[dim]Weakest:[/dim] [{_score_color(scores[0])}]{weakest.name}[/{_score_color(scores[0])}]"
     )
-
-
-def _print_json(reports: list[SkillReport]) -> None:
-    data = []
-    for r in reports:
-        data.append({
-            "file": str(r.skill.path),
-            "name": r.skill.metadata.name,
-            "word_count": r.skill.word_count,
-            "estimated_tokens": r.skill.estimated_tokens,
-            "score": {
-                "total": r.score.total,
-                "completeness": r.score.completeness,
-                "structure": r.score.structure,
-                "metadata": r.score.metadata,
-                "conciseness": r.score.conciseness,
-            },
-            "findings": [
-                {
-                    "rule": f.rule,
-                    "message": f.message,
-                    "severity": f.severity.value,
-                    "section": f.section,
-                }
-                for f in r.findings
-            ],
-            "smells": [s.value for s in r.smells],
-        })
-
-    console.print_json(json.dumps(data, indent=2))

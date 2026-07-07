@@ -8,8 +8,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from skill_refine.refine.differ import print_diff
 from skill_refine.safety.backup import find_backups, restore_backup
+from skill_refine.textdiff import print_diff
 
 console = Console()
 
@@ -61,7 +61,10 @@ def restore(
     backup_content = selected.path.read_text(encoding="utf-8")
 
     if current_content == backup_content:
-        console.print("[dim]Current file is identical to the selected backup. Nothing to restore.[/dim]")
+        console.print(
+            "[dim]Current file is identical to the selected backup. "
+            "Nothing to restore.[/dim]"
+        )
         return
 
     console.print()
