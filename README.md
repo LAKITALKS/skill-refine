@@ -67,11 +67,17 @@ skill-refine improve SKILL.md --mode all         # comprehensive rewrite
 skill-refine improve SKILL.md --mode clarity     # clarity / compact / robustness / structure / safety
 skill-refine improve SKILL.md --section warnings # patch one section
 skill-refine improve SKILL.md --dry-run          # preview diff, write nothing
-skill-refine improve SKILL.md --provider ollama  # anthropic / ollama / stub
+skill-refine improve SKILL.md --provider ollama  # anthropic / ollama
 skill-refine improve SKILL.md --critique         # add an independent LLM quality score
 ```
 
 **Flow:** analyze → (optionally) generate missing sections → rewrite via LLM → guard validation → show before/after score + diff → confirm → backup → write. If the LLM extras are not installed, `improve` exits with an install hint (not a traceback).
+
+**`improve` never fabricates a result.** If no real provider is configured
+(no `ANTHROPIC_API_KEY`, no running Ollama), it refuses with a non-zero exit and
+an explanation instead of silently producing a fake improvement. The built-in
+`stub` provider only echoes its input and is **test-only**: it is never
+auto-selected, and `--provider stub` requires the explicit `--allow-stub` flag.
 
 ### `restore` — restore from backup
 
@@ -213,9 +219,10 @@ Smells are heuristic and require no LLM. Which smells fire is profile-dependent.
 |----------|-------|-------|
 | **Anthropic** | `export ANTHROPIC_API_KEY=sk-…` | `[anthropic]` |
 | **Ollama** | `ollama serve` (local) | `[llm]` / `[ollama]` |
-| **Stub** | built-in (echoes input) | — |
+| **Stub** | built-in, **test-only** (echoes input; requires `--allow-stub`) | — |
 
-Auto-selection priority: Anthropic > Ollama > Stub.
+Auto-selection priority: Anthropic > Ollama. The stub is never auto-selected;
+if no real provider is available, `improve` refuses rather than faking output.
 
 ## Backups
 
@@ -241,6 +248,10 @@ pip install -e ".[dev,all]"
 pytest -q          # run tests
 ruff check .       # lint
 ```
+
+CI (GitHub Actions, [`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs
+`pytest` and `ruff check .` on Python 3.11 and 3.12 for every push and pull
+request. The offline import-boundary test runs as part of the suite.
 
 ## License
 

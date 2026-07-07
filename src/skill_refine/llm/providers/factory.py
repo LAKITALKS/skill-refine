@@ -38,12 +38,18 @@ def list_providers() -> list[str]:
     return sorted(_REGISTRY.keys())
 
 
-def auto_select_provider() -> BaseProvider | None:
+def auto_select_provider(include_stub: bool = False) -> BaseProvider | None:
     """Try to find a working provider automatically.
 
-    Priority: anthropic > ollama > stub.
+    Priority: anthropic > ollama. The stub provider is NOT selected by default,
+    because it echoes the input and produces no real improvement — selecting it
+    silently would fake a result. Pass ``include_stub=True`` (dev/test only) to
+    allow it as a last resort.
     """
-    for name in ["anthropic", "ollama", "stub"]:
+    names = ["anthropic", "ollama"]
+    if include_stub:
+        names.append("stub")
+    for name in names:
         if name not in _REGISTRY:
             continue
         try:

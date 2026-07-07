@@ -53,6 +53,19 @@ change on purpose; correctness was prioritized over backwards compatibility.
 - **Reference calibration fixtures** (`examples/reference/*/SKILL.md`) with a
   regression test asserting they score >= 8.0 with zero ERROR findings under
   the `standard` profile.
+- **CI** (`.github/workflows/ci.yml`) running `pytest` and `ruff check .` on
+  Python 3.11 and 3.12 for every push and pull request.
+
+### Fixed
+
+- **`improve` no longer silently uses the stub provider.** The stub echoes its
+  input and produced a fake "improvement" when no real provider was available.
+  Now the stub is never auto-selected; `improve` refuses with a non-zero exit
+  and an explanation when no provider is configured, and `--provider stub`
+  requires an explicit `--allow-stub` flag.
+- **empty-section false positive**: a heading whose content lives in child
+  subsections (or a fenced code block) is no longer reported as empty and no
+  longer penalized in the structure score.
 
 ### Changed (architecture)
 

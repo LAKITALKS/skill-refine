@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from skill_refine.lint.models import ScoreCard, Skill
 from skill_refine.lint.profiles import Profile
-from skill_refine.lint.sections import find_section
+from skill_refine.lint.sections import find_section, is_empty_section
 
 
 def compute_score(skill: Skill, profile: Profile) -> ScoreCard:
@@ -71,7 +71,9 @@ def _score_structure(skill: Skill, profile: Profile) -> float:
 
     score = 10.0
 
-    empty_count = sum(1 for s in skill.sections if not s.content.strip())
+    empty_count = sum(
+        1 for i in range(len(skill.sections)) if is_empty_section(skill.sections, i)
+    )
     score -= empty_count * 2.0
 
     oversized_count = sum(

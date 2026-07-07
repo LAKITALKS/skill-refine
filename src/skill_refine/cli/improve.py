@@ -122,6 +122,11 @@ def improve(
     critique: bool = typer.Option(
         False, "--critique", help="Also show an LLM-based quality score."
     ),
+    allow_stub: bool = typer.Option(
+        False,
+        "--allow-stub",
+        help="Allow the test-only stub provider (echoes input, no real improvement).",
+    ),
     generate_missing: bool = typer.Option(
         False,
         "--generate-missing",
@@ -149,21 +154,40 @@ def improve(
         console.print(f"[red]Unknown mode '{mode}'. Valid modes: {valid}.[/red]")
         raise typer.Exit(2)
 
-    # Resolve provider
-    try:
-        provider = (
-            llm.get_provider(provider_name)
-            if provider_name
-            else llm.auto_select_provider()
+    # Resolve provider. The stub provider only echoes the input and produces no
+    # real improvement, so it is test-only and must be requested explicitly.
+    if provider_name == "stub" and not allow_stub:
+        console.print(
+            "[red]The 'stub' provider is test-only and produces no real "
+            "improvement.[/red]\n"
+            "[dim]Re-run with --allow-stub only if you deliberately want it "
+            "(e.g. for pipeline testing).[/dim]"
         )
+        raise typer.Exit(2)
+
+    try:
+        if provider_name:
+            provider = llm.get_provider(provider_name)
+        else:
+            provider = llm.auto_select_provider(include_stub=allow_stub)
     except RuntimeError as e:
         console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
 
     if provider is None:
+        anthropic_hint = escape("pip install 'skill-refine[anthropic]'")
+        ollama_hint = escape("pip install 'skill-refine[ollama]'")
         console.print(
-            "[red]No LLM provider available.[/red]\n"
-            "[dim]Set ANTHROPIC_API_KEY or start Ollama (ollama serve).[/dim]"
+            "[red]'improve' requires an LLM provider, but none is available.[/red]"
+        )
+        console.print(
+            "[dim]It will not fabricate an improvement. Configure a provider:[/dim]"
+        )
+        console.print(
+            f"[dim]  • Anthropic: set ANTHROPIC_API_KEY, then {anthropic_hint}[/dim]"
+        )
+        console.print(
+            f"[dim]  • Ollama:    run 'ollama serve', then {ollama_hint}[/dim]"
         )
         raise typer.Exit(1)
 

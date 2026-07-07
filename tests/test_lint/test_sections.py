@@ -1,6 +1,12 @@
 """Tests for section extraction."""
 
-from skill_refine.lint.sections import extract_sections, find_section, has_section
+from skill_refine.lint.sections import (
+    extract_sections,
+    find_section,
+    has_child_sections,
+    has_section,
+    is_empty_section,
+)
 
 
 def test_extract_sections() -> None:
@@ -35,3 +41,17 @@ def test_no_headings() -> None:
 def test_word_count() -> None:
     sections = extract_sections("## Test\n\none two three four five")
     assert sections[0].word_count == 5
+
+
+def test_parent_with_subsection_has_children_and_is_not_empty() -> None:
+    sections = extract_sections("## Parent\n\n### Child\n\nContent under child.")
+    assert has_child_sections(sections, 0) is True  # Parent
+    assert has_child_sections(sections, 1) is False  # Child
+    assert is_empty_section(sections, 0) is False  # Parent not empty (has child)
+    assert is_empty_section(sections, 1) is False  # Child has content
+
+
+def test_sibling_without_content_is_empty() -> None:
+    sections = extract_sections("## A\n\n## B\n\nContent.")
+    assert is_empty_section(sections, 0) is True  # A: no content, no children
+    assert is_empty_section(sections, 1) is False  # B: has content

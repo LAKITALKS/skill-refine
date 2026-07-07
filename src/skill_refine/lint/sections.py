@@ -49,3 +49,28 @@ def find_section(sections: list[Section], name: str) -> Section | None:
 def has_section(sections: list[Section], name: str) -> bool:
     """Check if a section exists by name."""
     return find_section(sections, name) is not None
+
+
+def has_child_sections(sections: list[Section], index: int) -> bool:
+    """Whether the section at ``index`` is a parent of deeper subsections.
+
+    Sections are split at every heading, so a heading immediately followed by a
+    deeper heading (e.g. ``## Tools`` then ``### Tool A``) has no direct text of
+    its own — but it is not empty, its content lives in its subsections.
+    """
+    if index + 1 >= len(sections):
+        return False
+    return sections[index + 1].level > sections[index].level
+
+
+def is_empty_section(sections: list[Section], index: int) -> bool:
+    """Whether the section at ``index`` is genuinely empty.
+
+    A section counts as empty only if it has no direct textual content (which
+    already includes code blocks, since those live between headings) AND no
+    child subsections nested under it.
+    """
+    section = sections[index]
+    if section.content.strip():
+        return False
+    return not has_child_sections(sections, index)

@@ -21,6 +21,7 @@ from skill_refine.lint import (
     load_profile,
     render_json,
 )
+from skill_refine.lint.sections import is_empty_section
 from skill_refine.lint.smells import SMELL_MESSAGES
 
 console = Console()
@@ -184,13 +185,17 @@ def _print_single(report: SkillReport, verbose: bool) -> None:
 
     if verbose and report.skill.sections:
         console.print("[bold]Sections[/bold]")
-        for sec in report.skill.sections:
+        for i, sec in enumerate(report.skill.sections):
             wc_color = (
                 "red"
                 if sec.word_count > 500
                 else ("yellow" if sec.word_count > 300 else "dim")
             )
-            empty_tag = " [red](empty)[/red]" if not sec.content.strip() else ""
+            empty_tag = (
+                " [red](empty)[/red]"
+                if is_empty_section(report.skill.sections, i)
+                else ""
+            )
             console.print(
                 f"  [bold]##[/bold] {sec.heading}  "
                 f"[{wc_color}]{sec.word_count} words[/{wc_color}]{empty_tag}"

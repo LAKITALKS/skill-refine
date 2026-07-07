@@ -93,13 +93,43 @@ def test_version() -> None:
     assert "0.2.0" in result.stdout
 
 
-def test_improve_dry_run_with_stub(tmp_path: Path) -> None:
+def test_improve_stub_refused_without_allow_flag(tmp_path: Path) -> None:
     pytest.importorskip("httpx", reason="LLM extra not installed")
     skill = _write(tmp_path, "demo.md", _GOOD)
     before = skill.read_text(encoding="utf-8")
     result = runner.invoke(
         app, ["improve", str(skill), "--provider", "stub", "--dry-run"]
     )
+    assert result.exit_code != 0
+    assert "stub" in result.stdout.lower()
+    assert skill.read_text(encoding="utf-8") == before  # unchanged
+
+
+def test_improve_dry_run_with_stub_allowed(tmp_path: Path) -> None:
+    pytest.importorskip("httpx", reason="LLM extra not installed")
+    skill = _write(tmp_path, "demo.md", _GOOD)
+    before = skill.read_text(encoding="utf-8")
+    result = runner.invoke(
+        app,
+        ["improve", str(skill), "--provider", "stub", "--allow-stub", "--dry-run"],
+    )
     assert result.exit_code == 0
     assert "Dry run" in result.stdout
+    assert skill.read_text(encoding="utf-8") == before  # unchanged
+
+
+def test_improve_refuses_without_provider(tmp_path: Path, monkeypatch) -> None:
+    pytest.importorskip("httpx", reason="LLM extra not installed")
+    import skill_refine.llm.providers.factory as factory
+
+    # No real provider available and stub is not auto-selected: improve must
+    # refuse rather than fabricate an improvement.
+    monkeypatch.setattr(
+        factory, "auto_select_provider", lambda include_stub=False: None
+    )
+    skill = _write(tmp_path, "demo.md", _GOOD)
+    before = skill.read_text(encoding="utf-8")
+    result = runner.invoke(app, ["improve", str(skill), "--dry-run"])
+    assert result.exit_code != 0
+    assert "provider" in result.stdout.lower()
     assert skill.read_text(encoding="utf-8") == before  # unchanged

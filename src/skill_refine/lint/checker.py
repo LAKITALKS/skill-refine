@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from skill_refine.lint.models import Finding, Severity, Skill
 from skill_refine.lint.profiles import Profile
-from skill_refine.lint.sections import find_section, has_section
+from skill_refine.lint.sections import find_section, has_section, is_empty_section
 from skill_refine.lint.tokens import count_words
 
 
@@ -112,8 +112,8 @@ def _check_sections(skill: Skill, profile: Profile) -> list[Finding]:
                 )
             )
 
-    for section in skill.sections:
-        if not section.content.strip():
+    for i, section in enumerate(skill.sections):
+        if is_empty_section(skill.sections, i):
             findings.append(
                 Finding(
                     id="empty-section",
