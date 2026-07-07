@@ -1,0 +1,35 @@
+Third-party reference skills vendored for calibration testing
+=============================================================
+
+Source repository: https://github.com/anthropics/skills
+Source commit:     9d2f1ae187231d8199c64b5b762e1bdf2244733d
+License:           Apache License 2.0
+
+License verification
+--------------------
+Each vendored skill ships its own LICENSE.txt, and both were verified to be the
+Apache License, Version 2.0 (January 2004) before copying:
+
+    mcp-builder/LICENSE.txt     -> "Apache License, Version 2.0"
+    webapp-testing/LICENSE.txt  -> "Apache License, Version 2.0"
+
+The document skills in the upstream repo (docx, pdf, pptx, xlsx) were NOT
+vendored: their LICENSE.txt is a proprietary "all rights reserved" Anthropic
+license, not Apache-2.0.
+
+Copied files
+------------
+Only each skill's SKILL.md and its own LICENSE.txt were copied, unmodified.
+The upstream scripts/ and reference/ subfolders were intentionally not vendored
+(skill-refine lints the SKILL.md only and does not resolve referenced files).
+
+    skills/mcp-builder/SKILL.md       -> mcp-builder/SKILL.md
+    skills/mcp-builder/LICENSE.txt    -> mcp-builder/LICENSE.txt
+    skills/webapp-testing/SKILL.md    -> webapp-testing/SKILL.md
+    skills/webapp-testing/LICENSE.txt -> webapp-testing/LICENSE.txt
+
+Purpose
+-------
+These are read-only calibration fixtures: real, well-authored Agent Skills that
+must score >= 8.0 with zero ERROR findings under skill-refine's `standard`
+profile. mcp-builder additionally locks the empty-section regression fix.

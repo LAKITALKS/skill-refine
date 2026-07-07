@@ -50,11 +50,20 @@ change on purpose; correctness was prioritized over backwards compatibility.
   while hidden/vendor dirs (`.git`, `.venv`, `node_modules`, `.archive`, …),
   a skill's own supporting files, common project docs, and trees deeper than
   5 levels are skipped.
-- **Reference calibration fixtures** (`examples/reference/*/SKILL.md`) with a
-  regression test asserting they score >= 8.0 with zero ERROR findings under
-  the `standard` profile.
+- **Reference calibration fixtures.** Synthetic examples live under
+  `examples/reference/*/SKILL.md`, and two real, Apache-2.0-licensed Agent
+  Skills (`mcp-builder`, `webapp-testing`) are vendored under
+  `tests/fixtures/reference_skills/` (from `anthropics/skills`, with a NOTICE
+  recording source commit and license verification).
+- **Calibration regression suite** (`tests/test_lint/test_calibration.py`):
+  every vendored reference skill must score >= 8.0 with zero ERROR findings
+  under `standard`; `mcp-builder` additionally locks the empty-section fix by
+  asserting its structure sub-score stays >= 8.0.
 - **CI** (`.github/workflows/ci.yml`) running `pytest` and `ruff check .` on
-  Python 3.11 and 3.12 for every push and pull request.
+  Python 3.11 and 3.12 for every push and pull request, plus a
+  **self-lint gate** that runs
+  `skill-refine check tests/fixtures/reference_skills/ --profile standard --fail-on error`
+  so the calibration fixtures are guarded on every CI run.
 
 ### Fixed
 

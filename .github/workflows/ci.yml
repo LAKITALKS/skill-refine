@@ -33,5 +33,10 @@ jobs:
         # interpreter to assert the lint core imports no LLM/network modules.
         run: pytest -q
 
+      - name: Self-lint reference fixtures
+        # Permanent calibration guard: the vendored Apache-2.0 reference skills
+        # must pass the standard profile with no error-level findings.
+        run: skill-refine check tests/fixtures/reference_skills/ --profile standard --fail-on error
+
       - name: Lint
         run: ruff check .
