@@ -1,5 +1,7 @@
 # skill-refine
 
+[![CI](https://github.com/LAKITALKS/skill-refine/actions/workflows/ci.yml/badge.svg)](https://github.com/LAKITALKS/skill-refine/actions/workflows/ci.yml)
+
 A standard-aligned linter and optional refiner for **Agent Skills** (`SKILL.md`).
 
 skill-refine treats skill files (Markdown with YAML frontmatter) as inspectable instruction artifacts. Its deterministic, offline **lint core** parses their structure, runs quality checks, detects recurring antipatterns ("skill smells"), and computes transparent, profile-driven scores. An **optional LLM layer** can then rewrite, complete, or patch a skill — every proposed change is shown as a diff and written only after explicit confirmation, with an automatic backup.
@@ -77,7 +79,8 @@ skill-refine improve SKILL.md --critique         # add an independent LLM qualit
 (no `ANTHROPIC_API_KEY`, no running Ollama), it refuses with a non-zero exit and
 an explanation instead of silently producing a fake improvement. The built-in
 `stub` provider only echoes its input and is **test-only**: it is never
-auto-selected, and `--provider stub` requires the explicit `--allow-stub` flag.
+auto-selected, and `--provider stub` requires the explicit
+`--allow-stub-provider` flag (the older `--allow-stub` still works as an alias).
 
 ### `restore` — restore from backup
 
@@ -143,7 +146,7 @@ completeness = 0.2
   "tool": "skill-refine",
   "tool_version": "0.2.0",
   "profile": "standard",
-  "generated_at": "2026-07-07T12:00:00Z",
+  "generated_at": "2025-01-01T12:00:00Z",
   "skills": [
     {
       "path": "skills/pdf-filler/SKILL.md",
@@ -219,7 +222,7 @@ Smells are heuristic and require no LLM. Which smells fire is profile-dependent.
 |----------|-------|-------|
 | **Anthropic** | `export ANTHROPIC_API_KEY=sk-…` | `[anthropic]` |
 | **Ollama** | `ollama serve` (local) | `[llm]` / `[ollama]` |
-| **Stub** | built-in, **test-only** (echoes input; requires `--allow-stub`) | — |
+| **Stub** | built-in, **test-only** (echoes input; requires `--allow-stub-provider`) | — |
 
 Auto-selection priority: Anthropic > Ollama. The stub is never auto-selected;
 if no real provider is available, `improve` refuses rather than faking output.
@@ -250,8 +253,12 @@ ruff check .       # lint
 ```
 
 CI (GitHub Actions, [`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs
-`pytest` and `ruff check .` on Python 3.11 and 3.12 for every push and pull
-request. The offline import-boundary test runs as part of the suite.
+on Python 3.11 and 3.12 for every push and pull request, executing:
+
+- `pytest` (including the offline import-boundary test)
+- `ruff check .`
+- `skill-refine check tests/fixtures/reference_skills/ --profile standard --fail-on error`
+  — the calibration self-lint gate over the vendored reference skills.
 
 ## License
 

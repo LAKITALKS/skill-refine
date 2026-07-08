@@ -124,8 +124,12 @@ def improve(
     ),
     allow_stub: bool = typer.Option(
         False,
+        "--allow-stub-provider",
         "--allow-stub",
-        help="Allow the test-only stub provider (echoes input, no real improvement).",
+        help=(
+            "Allow the test-only stub provider (echoes input, no real "
+            "improvement). --allow-stub is a backward-compatible alias."
+        ),
     ),
     generate_missing: bool = typer.Option(
         False,
@@ -160,8 +164,8 @@ def improve(
         console.print(
             "[red]The 'stub' provider is test-only and produces no real "
             "improvement.[/red]\n"
-            "[dim]Re-run with --allow-stub only if you deliberately want it "
-            "(e.g. for pipeline testing).[/dim]"
+            "[dim]Re-run with --allow-stub-provider only if you deliberately "
+            "want it (e.g. for pipeline testing).[/dim]"
         )
         raise typer.Exit(2)
 

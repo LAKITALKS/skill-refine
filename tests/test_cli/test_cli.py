@@ -111,11 +111,29 @@ def test_improve_dry_run_with_stub_allowed(tmp_path: Path) -> None:
     before = skill.read_text(encoding="utf-8")
     result = runner.invoke(
         app,
-        ["improve", str(skill), "--provider", "stub", "--allow-stub", "--dry-run"],
+        [
+            "improve",
+            str(skill),
+            "--provider",
+            "stub",
+            "--allow-stub-provider",
+            "--dry-run",
+        ],
     )
     assert result.exit_code == 0
     assert "Dry run" in result.stdout
     assert skill.read_text(encoding="utf-8") == before  # unchanged
+
+
+def test_improve_allow_stub_alias_still_works(tmp_path: Path) -> None:
+    pytest.importorskip("httpx", reason="LLM extra not installed")
+    skill = _write(tmp_path, "demo.md", _GOOD)
+    # The legacy --allow-stub alias must remain backward-compatible.
+    result = runner.invoke(
+        app, ["improve", str(skill), "--provider", "stub", "--allow-stub", "--dry-run"]
+    )
+    assert result.exit_code == 0
+    assert "Dry run" in result.stdout
 
 
 def test_improve_refuses_without_provider(tmp_path: Path, monkeypatch) -> None:
